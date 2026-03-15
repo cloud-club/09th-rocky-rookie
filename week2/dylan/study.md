@@ -567,7 +567,7 @@ FS UID (FSUID)        → 파일 접근 시 사용 (보통 EUID와 동일)
 
 평상시에는 RUID = EUID다. SetUID 비트가 설정된 파일을 실행하면 EUID가 파일 소유자로 변경된다.
 
-![프로세스 자격증명 RUID EUID SUID 구조](euid.png)
+![프로세스 자격증명 $EUID](euid.png)
 
 #### passwd 명령 실행 흐름
 
