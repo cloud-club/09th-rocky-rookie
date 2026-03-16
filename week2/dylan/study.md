@@ -154,6 +154,8 @@ E requires D
 > `/etc/dnf/dnf.conf` — `[main]` 섹션에 전역 설정 저장  
 > 출처: [DNF Configuration Reference](https://dnf.readthedocs.io/en/latest/conf_ref.html)
 
+![저장소 설정 파일 (dnf.conf)](dnfconf.png)
+
 #### DNF Metadata — 저장소 캐시 구조
 
 ```
@@ -246,8 +248,6 @@ AppStream 예시 패키지:
 
 특징: BaseOS보다 자주 업데이트되며, 각 패키지마다 자체 수명주기를 보유한다. RHEL 10 전체 수명(~2035)보다 짧게 지원될 수 있다.
 
-![Rocky Linux 저장소 구조](rockyrepo.png)
-
 #### RHEL 10에서 AppStream의 중요한 변화
 
 > 출처: [RHEL 10 Package manifest — Chapter 1](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/package_manifest/content)
@@ -309,7 +309,7 @@ cat /etc/yum.repos.d/rocky.repo
 # gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-Rocky-10
 ```
 
-![저장소 설정 파일 (dnf.conf)](dnfconf.png)
+![Rocky Linux 저장소 설정](rockyrepo.png)
 
 #### GPG 서명 검증 메커니즘
 
