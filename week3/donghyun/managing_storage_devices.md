@@ -1,3 +1,5 @@
+# Managing Storage Devices
+
 https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/managing_storage_devices/index
 
 # 선수지식
@@ -160,7 +162,7 @@ udevadm info --name /dev/nvme0n1 --query property --property DEVLINKS --value
 # 2. 이 링크들이 가리키는 원본 커널 이름(DEVNAME) 확인
 udevadm info --name /dev/nvme0n1 --query property --property DEVNAME --value`
 
-```python
+```bash
 mr8356@mr8356:~$ udevadm info --name /dev/nvme0n1 --query property --property DEVLINKS --value
 /dev/disk/by-diskseq/1 /dev/disk/by-id/nvme-VMware_Virtual_NVMe_Disk_VMware_NVM>
 lines 1-1/1 (END)
@@ -222,7 +224,7 @@ parted /dev/sda
 # 6. 커널이 새 파티션을 잘 인식했는지 확인
 cat /proc/partitions`
 
-```python
+```bash
 mr8356@mr8356:~$ lsblk
 NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
 sr0          11:0    1  8.1G  0 rom
@@ -307,7 +309,7 @@ Hex code or alias: 8e
 # 5. 저장(write)하고 종료
 Command (m for help): w`
 
-```python
+```bash
 mr8356@mr8356:~$ sudo fdisk /dev/nvme0n1
 [sudo] password for mr8356:
 
@@ -419,7 +421,7 @@ parted /dev/sda resizepart 1 2GiB
 # 파티션 삭제 (예: 1번 파티션 삭제)
 parted /dev/sda rm 1`
 
-```python
+```bash
 mr8356@mr8356:~$ sudo parted /dev/nvme0n1
 GNU Parted 3.6
 Using /dev/nvme0n1
@@ -495,7 +497,7 @@ Swap space는 물리적 메모리(RAM)가 가득 찼을 때 비활성 프로세�
 
 ### LVM 관련 조회
 
-```python
+```bash
 mr8356@mr8356:~$ sudo vgdisplay
   --- Volume group ---
   VG Name               rl
@@ -573,7 +575,7 @@ swapon -v /dev/VolGroup00/LogVol02
 cat /proc/swaps
 free -h`
 
-```python
+```bash
 mr8356@mr8356:~$ sudo parted /dev/nvme0n1 mkpart primary 42.9GB 100%
 
 mr8356@mr8356:~$ sudo partprobe /dev/nvme0n1
@@ -663,7 +665,7 @@ sysctl vm.swappiness=10
 echo 'vm.swappiness = 10' >> /etc/sysctl.d/99-sysctl.conf
 sysctl -p`
 
-```python
+```bash
 mr8356@mr8356:~$ cat /proc/sys/vm/swappiness
 30
 mr8356@mr8356:~$ sudo sysctl vm.swappiness=10
@@ -720,6 +722,47 @@ echo 1 > /sys/block/sdc/device/delete
 # 7. 최종 확인 (sdc가 리스트에서 사라졌는지 확인)
 lsblk`
 
-```python
-마운트 배우고 나중에 해봄.
+```bash
+mr8356@mr8356:~$ sudo pvs
+[sudo] password for mr8356:
+  PV             VG       Fmt  Attr PSize  PFree
+  /dev/nvme0n1p3 rl       lvm2 a--  38.41g 4.00m
+  /dev/nvme0n1p4 final_vg lvm2 a--   6.56g 4.56g
+
+mr8356@mr8356:~$ sudo umount /mnt/test
+
+mr8356@mr8356:~$ sudo wipefs -a /dev/final_vg/test_lv
+/dev/final_vg/test_lv: 4 bytes were erased at offset 0x00000000 (xfs): 58 46 53 42
+
+mr8356@mr8356:~$ sudo lvremove final_vg/test_lv
+Do you really want to remove active logical volume final_vg/test_lv? [y/n]:  y
+  Logical volume "test_lv" successfully removed.
+
+mr8356@mr8356:~$ sudo vgremove final_vg
+  Volume group "final_vg" successfully removed
+
+mr8356@mr8356:~$ sudo pvremove /dev/nvme0n1p4
+  Labels on physical volume "/dev/nvme0n1p4" successfully wiped.
+mr8356@mr8356:~$ sudo wipefs -a /dev/nvme0n1p4
+mr8356@mr8356:~$ sudo parted /dev/nvme0n1 rm 4
+Information: You may need to update /etc/fstab.
+
+mr8356@mr8356:~$ sudo vi /etc/fstab -> 아래 주석으로 수정함
+# UUID=9f2f87a5-c387-4542-9b23-653a557a1319 /mnt/test xfs defaults 0 0
+
+mr8356@mr8356:~$ sudo systemctl daemon-reload -> systemd에 반영
+
+mr8356@mr8356:~$ sudo partprobe /dev/nvme0n1 -> 커널에 파티션 삭제 알리기
+
+mr8356@mr8356:~$ lsblk
+NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sr0          11:0    1  8.1G  0 rom
+nvme0n1     259:0    0   50G  0 disk
+├─nvme0n1p1 259:1    0  600M  0 part /boot/efi
+├─nvme0n1p2 259:2    0    1G  0 part /boot
+│                                    /boot
+│                                    /boot
+└─nvme0n1p3 259:3    0 38.4G  0 part
+  ├─rl-root 253:0    0 34.5G  0 lvm  /
+  └─rl-swap 253:1    0  3.9G  0 lvm  [SWAP]
 ```
