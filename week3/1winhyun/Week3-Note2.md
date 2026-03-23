@@ -125,6 +125,44 @@ blkid
 UUID=1cdfbc...  /mnt/data  xfs  defaults,nofail  0  2
 ```
 
+### 실습 예제: 스왑 메모리 할당 및 영구 등록
+
+스왑(Swap)은 물리적 RAM이 부족할 때 디스크의 일부를 임시 메모리처럼 사용하는 공간입니다. `swapon`으로 활성화한 스왑은 재부팅 시 해제되므로, `/etc/fstab`에 등록하여 영구적으로 유지해야 합니다.
+
+1. **스왑 파일 생성** (2GB 예시):
+
+```bash
+sudo dd if=/dev/zero of=/swapfile bs=128M count=16
+```
+
+2. **권한 설정** (root만 읽기/쓰기 가능하도록 제한):
+
+```bash
+sudo chmod 600 /swapfile
+```
+
+3. **스왑 영역으로 포맷**:
+
+```bash
+sudo mkswap /swapfile
+```
+
+4. **스왑 활성화 및 확인**:
+
+```bash
+sudo swapon /swapfile
+sudo swapon -s
+free -h
+```
+
+5. **`/etc/fstab` 파일 편집**하여 아래 줄 추가:
+
+```
+/swapfile  swap  swap  defaults  0  0
+```
+
+> **fstab 필드 해석**: 마운트 포인트와 파일 시스템 타입이 모두 `swap`이며, fsck 순서는 `0`입니다. 스왑은 일반 파일 시스템이 아니므로 디렉토리에 마운트하지 않고, 파일 시스템 검사도 불필요합니다.
+
 ### 주요 필드 및 권장 옵션 설명
 
 #### 마운트 옵션 (Options)
