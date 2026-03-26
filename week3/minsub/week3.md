@@ -3,6 +3,7 @@
 
 1주차에서는 디렉터리 구조와 기본 명령어, 2주차에서는 패키지 및 사용자/권한 관리 방법을 학습했다.
 이번 3주차에서는 한 단계 나아가 `스토리지 관점에서 RHEL을 다루는 기본 방법` 스터디를 목표로 한다.
+
 ---
 
 ## 1. 기본 개념 (디스크, 파티션, 볼륨, 파일 시스템, 마운트)
@@ -134,8 +135,16 @@ LVM 구조는 아래와 같다.
 ### 1. 현재 시스템 스토리 구조 확인
 실습에 본격적으로 들어가기 전, 현재 RHEL이 어떤 디스크와 파일 시스템 구조를 가지고 있는지 먼저 확인
 
+<p align="center">
+<img width="45%" height="207" alt="image" src="https://github.com/user-attachments/assets/7abd5997-b430-4ee8-8c62-53dad2a6f764" />
+<img width="45%" height="294" alt="image" src="https://github.com/user-attachments/assets/0de632b6-24ab-4656-9e72-2bc5945b4e9e" />
+</p>
 
-- `lsblk` : 디슼, 파티션, 마운트 구조 확인
+<img width="45%" height="405" alt="image" src="https://github.com/user-attachments/assets/efabe60e-ec9d-441e-97b5-2699575bd5e0" />
+
+
+
+- `lsblk` : 디스크, 파티션, 마운트 구조 확인
 - `df -h` : 마운트된 파일 시스템의 용량 및 사용량 확인
 - `mount` : 현재 마운트된 파일 시스템 확인
 - `blkid` : 디스크/파티션의 UUID 및 파일 시스템 타입 확인
@@ -150,8 +159,14 @@ LVM 구조는 아래와 같다.
 - `lsblk:` 블록 디바이스 구조 확인
 - `sudo fdisk -l` : 전체 디스크 및 파티션 정보 출력
 
+<img width="476" height="131" alt="image" src="https://github.com/user-attachments/assets/0e061a3e-3bf1-4bda-9fc4-a11423872fd4" />
+
+
 ### 3. 파티션 생설 실습
 새 디스크를 바로 사용하는 대신, 먼저 파티션을 생성했다.
+
+<img width="661" height="458" alt="image" src="https://github.com/user-attachments/assets/b4d48387-e127-4649-ab8c-fe1e645da04d" />
+
 
 `fdisk`는 디스크의 파티션을 생성, 삭제, 수정할 수 있는 명령어이다.
 
@@ -167,10 +182,16 @@ LVM 구조는 아래와 같다.
 - `엔터`: 기본 끝 섹터 사용
 - `w`: 저장 후 종료
 
+<img width="655" height="144" alt="image" src="https://github.com/user-attachments/assets/6bb32db7-ad16-4be5-b668-02740ba85824" />
+
+`sda1` 이라는 새 파티션이 생긴 것을 확인할 수 있다.
+
 ### 4. 파일 시스템 생성
 파티션을 생성한 뒤에는, 해당 공간을 실제로 사용할 수 있도록 파일 시스템을 생성해야 한다.
 
 실습에서는 RHEL에서 많이 사용되는 xfs 파일 시스템을 생성했다.
+
+<img width="646" height="265" alt="image" src="https://github.com/user-attachments/assets/c1d93f22-0304-417d-8b1b-c51757df8fa8" />
 
 
 `sudo mkfs.xfs /dev/sda1`
@@ -180,16 +201,27 @@ LVM 구조는 아래와 같다.
 
 파일 시스템 생성 후 아래 명령어로 파일 시스템 타입과 UUID를 확인했다.
 
+<img width="653" height="65" alt="image" src="https://github.com/user-attachments/assets/e0fd93d6-7e22-4712-a137-629bbb423328" />
+
+
 `sudo blkid /deb/sda1`
-이 과정을 통해 ``/dev/sda1 이 `xfs` 파일 시스템으로 초기화되었음을 확인했다.
+이 과정을 통해 `/dev/sda1` 이 `xfs` 파일 시스템으로 초기화되었음을 확인했다.
 
 ### 5. 마운트 실습
 파일 시스템을 생성한 뒤, 이를 특정 디렉터리에 연결해야 실제 저장공간처럼 사용할 수 있다.
 새 파티션을 `/data` 디렉터리에 마운트했다.
 
+<p align="center">
+<img width="45%" height="406" alt="image" src="https://github.com/user-attachments/assets/4c7bcfde-8502-4c70-889e-799900517919" />
+<img width="45%" height="252" alt="image" src="https://github.com/user-attachments/assets/d4ee65e0-e8f0-4647-a4c5-0f087bfa091e" />
+</p>
+
 - `df -h` : `/data` 가 새로운 파일 시스템으로 연결되었는지 확인
 - `mount | grep /data` :  `/data`  마운트 여부 확인
 - `lsblk` : 디스크와 마운트 포인트 관계 재확인
+
+<img width="426" height="145" alt="image" src="https://github.com/user-attachments/assets/f7aa3211-aa5e-4a12-b1b0-f5516921be54" />
+
 
 마운트가 완료된 뒤, 디렉터리에 파일을 만들어보며 정상적으로 동작하는지 테스트
 
@@ -198,6 +230,9 @@ LVM 구조는 아래와 같다.
 이를 해결하기 위해 `/etc/fstab` 파일에 자동 마운트 정보를 등록한다.
 
 - UUID 확인
+
+<img width="319" height="68" alt="image" src="https://github.com/user-attachments/assets/b212fadd-3e46-4ff2-9d3b-6edafeea65cc" />
+
 
 - `/etc/fstab` 파일 편집 (`UUID = 장치 UUID /data xfs defaults 0 0`)
 - `sudo mount -a`로 /etc/fstab 내용을 기준으로 전체 마운트 테스트
@@ -211,16 +246,28 @@ LVM 구조는 아래와 같다.
 
 우선 이를 위해 디스크를 하나 더 추가해주었다.
 
+<img width="450" height="115" alt="image" src="https://github.com/user-attachments/assets/52c29965-7cc2-41d0-b32d-56d7d775c5cf" />
+
+
 ### 7-1. PV 생성
+
+<img width="423" height="50" alt="image" src="https://github.com/user-attachments/assets/93a70e41-7886-493b-8084-407a71a5a1f1" />
+
 
 - `vgcreate`: 디스크 또는 파티션을 LVM의 Physical Volume으로 초기화
 
 ### 7-2. VG 생성
 
+<img width="427" height="42" alt="image" src="https://github.com/user-attachments/assets/6ed6826d-4602-4791-be39-c3cfde81a9c8" />
+
+
 - `vgcreate`: PV를 묶어 Volume Group 생성
 - `vgdata` : 생성할 VG 이름 지정
 
 ### 7-3. LV 생성
+
+<img width="495" height="46" alt="image" src="https://github.com/user-attachments/assets/91381b45-1536-4f24-be5b-5ca4d875c7fd" />
+
 
 - `lvcreate`: Logical Volume 생성
 - `-L 3G` : 크기 3GB
@@ -229,11 +276,22 @@ LVM 구조는 아래와 같다.
 ### 7-4. 파일 시스템 생성
 생성한 논리 볼륨에 `xfs` 파일 시스템 생성
 
+<img width="646" height="250" alt="image" src="https://github.com/user-attachments/assets/3113e5a2-0db0-43c9-9181-4cfac5246e31" />
+
+
 ### 7-5. 마운트 포인트 생성 및 마운트
 - `sudo mkdir /lvdata` : 마운트할 포인트 생성
 - `sudo mount /dev/vgdata/lvdata /lvdata` : 마운트
 
 마운트 한 뒤에 결과 확인
+
+<p align="center">
+<img width="45%" height="391" alt="image" src="https://github.com/user-attachments/assets/218b20bc-abe9-439d-93a6-724b9c8cccaf" />
+<img width="45%" height="281" alt="image" src="https://github.com/user-attachments/assets/0c8a5380-29f6-42ca-b480-4e8eb22727f4" />
+</p>
+
+<img width="50%" height="347" alt="image" src="https://github.com/user-attachments/assets/dc4d224f-8716-4fe2-bb1b-a6f6a66cea4e" />
+
 
 - `pvs` : Physical Volume 정보 확인
 - `vgs` : Volume Group 정보 확인
