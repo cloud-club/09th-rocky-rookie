@@ -40,17 +40,24 @@ systemd는 여러 개의 unit을 기반으로 하여 종속성 관리와 병렬 
 5. 부팅 때 자동 실행할지 여부와 연결 관계
 
 ```ini
-[Unit]
-Description=My Web App -> 서비스에 대한 설명
-After=network.target -> 네트워크가 준비된 뒤 실행 시작
+# /usr/lib/systemd/system/sshd.service
+[Unit] #이 서비스가 무슨 서비스인지, 무엇 뒤에 실행되는지, 어떤 유닛을 함께 원하는지
+Description=OpenSSH server daemon #OpenSSH 서버 데몬
+Documentation=man:sshd(8) man:sshd_config(5) #관련 문서를 알려주는 줄, man:sshd(8)은 sshd 실행 프로그램 설명서이고, man:sshd_config(5)는 sshd 설정 파일 설명서이다. 
+After=network.target sshd-keygen.target #실행 순서를 의미. 네트워크 관련 기본 준비가 끝나고 sshd-keygen.target이 처리된 뒤에 이 sshd 서비스를 시작하라는 뜻이다. 
+Wants=sshd-keygen.target #약한 의존성이 들어간다. "가능하면" sshd-keygen.target도 같이 끌고와서 실행하라는 의미이다. 동작이 실패한다고 해도 무조건 sshd까지 막는 강한 의존 관계는 아니다.
+Wants=ssh-host-keys-migration.service #sshd가 실행되기 전에 키 관련 상태를 최신 정책에 맞게 정리해주는 서비스
 
-[Service]
-ExecStart=/usr/bin/python3 /app/main.py -> 실제 실행 명령
-Restart=always -> 죽으면 다시 복구
-
-[Install]
-WantedBy=multi-user.target -> 일반 서버 모드 부팅 시 자동 실행 대상에 포함
-
+[Service] #실제로 어떻게 실행할지, 재시작은 어떻게 할지
+Type=notify #Type은 서비스 시작 완료를 systemd가 어떻게 판달할지를 정하는 옵션이다. 즉 이 줄(Type=notify)는 프로세스가 뜨기만 했다고 바로 성공으로 보지 말고, 프로그램이 systemd에게 준비가 완료됐다고 알릴 때까지 기다리라는 옵션이다. 
+EnvironmentFile=-/etc/sysconfig/sshd # 환경 변수를 외부 파일에서 읽겠다
+ExecStart=/usr/sbin/sshd -D $OPTIONS #서비스를 시작핼 때 실제 실행할 명령어
+ExecReload=/bin/kill -HUP $MAINPID #서비스 reload 명령어
+KillMode=process #서비스를 종료할 때 어디까지 죽일지
+Restart=on-failure #서비스가 비정상 종료하면 자동으로 다시 시작
+RestartSec=42s #재시작 시, 42초 기다려라
+[Install] #부팅 시 어떤 target에 연결할지 -> 자동 실행과 관련된 부분
+WantedBy=multi-user.target # 이 서비스를 enable하면 multi-user.target에 연결. 서버가 일반 운영 모드로 부팅될 때 sshd도 함께 자동 시작되게 하라
 ```
 
 
