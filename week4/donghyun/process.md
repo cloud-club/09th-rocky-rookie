@@ -187,6 +187,7 @@ top -d 0.5
 | `si` (SW Interrupt) | Software Interrupt 처리 | 낮음 | Network 패킷 처리가 많을 때 상승 |
 | `st` (Steal Time) | **가상화 환경에서 다른 VM에 빼앗긴 CPU** | 0% | **5% 이상이면 Instance 업그레이드 필요!** |
 
+<img width="1120" height="739" alt="image" src="https://github.com/user-attachments/assets/09cee70a-8368-4791-aa64-f50834b54cc5" />
 <img width="2048" height="1112" alt="Image" src="https://github.com/user-attachments/assets/b3fa296d-1c8c-4705-91d2-aee0eab92512" />
 <img width="1894" height="1218" alt="Image" src="https://github.com/user-attachments/assets/8440cd6f-ee0a-48fe-b500-cbd7ab8e1145" />
 <img width="1263" height="613" alt="Image" src="https://github.com/user-attachments/assets/fd9c1e4d-0a96-4305-964b-19cc2ac1d973" />
