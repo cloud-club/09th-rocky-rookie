@@ -145,8 +145,8 @@ systemctl is-enabled sshd
 systemctl list-units --type=service --state=running
 ```
 
-![alt text](image.png)
-![alt text](image-2.png)
+![systemctl status sshd](./images/image.png)
+![systemctl list-units](./images/image-2.png)
 
 ### 4-2. 서비스 시작/중지/재시작
 
@@ -188,8 +188,8 @@ sudo systemctl enable --now firewalld
 > - `start`: **지금 즉시** 서비스를 시작 (다음 부팅에는 영향 없음)
 > - `enable --now`: 둘 다 동시에 수행 (실무에서 가장 많이 사용)
 
-![alt text](image-3.png)
-![alt text](image-4.png)
+![서비스 stop/start](./images/image-3.png)
+![서비스 enable](./images/image-4.png)
 
 ### 4-4. Target 확인
 
@@ -224,7 +224,7 @@ journalctl -f -u sshd
 journalctl --since today
 ```
 
-![alt text](image-5.png)
+![journalctl 로그 조회](./images/image-5.png)
 ---
 
 # Part 2. 프로세스 조회 및 제어
@@ -289,7 +289,7 @@ ps aux | grep sshd
 | Z | Zombie | 종료되었으나 부모가 회수하지 않음 |
 | T | Stopped | 중지됨 (Ctrl+Z) |
 
-![alt text](image-6.png)
+![ps aux 실행 결과](./images/image-6.png)
 
 ### 6-2. top - 실시간 프로세스 모니터링
 
@@ -308,7 +308,7 @@ top
 | `k` | 프로세스 종료 (PID 입력) |
 | `1` | CPU 코어별 사용량 표시 |
 
-![alt text](image-7.png)
+![top 실행 화면](./images/image-7.png)
 
 ### 6-3. kill - 프로세스 종료
 
@@ -445,8 +445,8 @@ atrm <job-number>
 ```
 > **cron vs at**: 매일 반복되는 백업은 `cron`, 서버 점검 후 한 번만 재시작하는 작업은 `at`을 사용한다.
 
-![alt text](image-10.png)
-![alt text](image-9.png)
+![at/cron 스케줄링](./images/image-10.png)
+![crontab 목록](./images/image-9.png)
 
 ### 8-3. cgroup 확인
 
@@ -458,7 +458,7 @@ systemd-cgls
 systemd-cgtop
 ```
 
-![alt text](image-8.png)
+![systemd-cgls 실행 결과](./images/image-8.png)
 
 #### 서비스별 자원 제한 설정
 
