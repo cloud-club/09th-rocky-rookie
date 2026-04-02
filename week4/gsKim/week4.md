@@ -93,8 +93,133 @@ systemctl restart httpd #서비스 재시작
 7. 우선 순위
 
 ## 프로세스 관련 명령어
+ps : 프로세스 조회
+```ini
+ps -ef | grep nginx #nginx의 프로세스를 검색해서 상세 정보를 출력
+```
+kill : 프로세스 종료/제어
+```ini
+kill {PID} #프로세스 종료
+```
+top : 실시간 프로세스 모니터링
+```ini
+top -p $(pgrep -d',' nginx) #현재 실행 중인 모든 nginx 프로세스의 상태를 실시간으로 모니터링
+```
+nice : 프로세스 우선순위 조정(renice는 이미 작동하는 프로세스의 우선순위를 재조정)
+```ini
+sudo renice 5 -p {PID} #해당 PID의 우선순위를 재조정
+```
+#작업 스케줄링
+명령어나 스크립트를 특정 시점에 자동 실행
+- 매일 새벽 2시에 로그 백업
+- 매주 일요일마다 임시 파일 삭제
+- 오늘 오후 5시에 서버 재시작 스크립트 실행
 
-  
+##cron
+반복적으로 실행해야 하는 작업을 위해 사용된다. 
+백그라운드에서 동작하는 crond이 시간을 확인하다가, 지정한 시간이 되면 설정한 명령어를 실행한다. 
+cron 작업은 crontab에 등록되어 실행된다. 
+
+###crontab 명령 형식
+```ini
+* * * * * 명령어 #분 시 일 월 요일 명령어
+0 2 * * * /home/user/backup.sh #매일 새벽 2시에 백업 실행
+0 2 * * * /home/user/backup.sh >> /home/user/backup.log 2>&1 # 위와 같은 명령어지만, 실행 결과와 에러 로그를 남길 수 있다.
+*/10 * * * * /home/user/check.sh #10분마다 check.sh 실행
+30 9 * * 1 /home/user/report.sh #매주 9시 30분에 report.sh 실행
+```
+###crontab 관련 명령어
+```ini
+crontab -e #스크립트 파일에서 cron 작업 편집.
+```
+
+```ini
+crontab -l #현재 등록된 cron 작업 목록 출력.
+```
+
+```ini
+crontab -r #cron 작업 삭제 
+```
+
+##at
+반복이 아니라 특정 시각에 딱 1회 실행을 위한 작업에 실행된다. 예약성 작업을 위해 사용.
+- at now + 10 minutes
+- at now + 1 hour
+- at 5pm tomorrow
+- at midnight
+위와 같은 방법으로 시간을 예약할 수 있다.
+
+#cgroup 기반 자원 제어 기초
+croup(control group): 리눅스에서 프로세스 그룹 단위로 자원(CPU, 메모리, Block I/O, PID 수 등)을 제한하거나 관리할 수 있게 해주는 기능
+프로세스와 마찬가지로 cgroup은 계층적으로 구성되어 있으며 하위 cgroup 부모 cgroup 속성의 일부를 상속하도록되어 있다.
+croup을 왜 사용할까?
+서버에서 여러 프로세스가 같이 돌 때, 하나가 자원을 과도하게 먹어버리면 다른 서비스가 느려질 수 있다. 이럴 때 cgroup으로 자원 사용량을 제한해서 시스템 전체 안정성을 유지시킬 수 있다.
+
+##cgroup v1 & cgroup v2
+###cgroup v1
+- 자원별로 독립적인 계층 구조를 가지며, 유연하지만 설정이 복잡하고 일관성이 부족하여 현재는 v2로 전환되는 추세이다.
+- 프로세스를 어느 노드에도 위치 가능하다.
+- 각 컨트롤러마다 파일명과 동작이 다르다.
+
+###cgroup v2
+- v1의 분리된 계층 구조를 단일 통합 구조로 개선하여 컨테이너 환경(k8s)에서 더 정교한 리소스 관리, 안전한 위임, 효율적인 압력 인지를 제공한다.
+- 프로세스는 리프 노드에만 위치 가능하다.
+- 모든 컨트롤러가 동일한 규칙을 가지고 있다.
+
+cgroup v2의 구조
+```ini
+/sys/fs/cgroup
+└── /
+    ├── system.slice
+    │   ├── sshd.service
+    │   ├── nginx.service
+    │   ├── cron.service
+    │   └── docker.service
+    │
+    ├── user.slice
+    │   ├── user-1000.slice
+    │   │   ├── user@1000.service
+    │   │   │   ├── app.slice
+    │   │   │   ├── session.slice
+    │   │   │   └── ...
+    │   │   ├── session-1.scope
+    │   │   └── session-2.scope
+    │   │
+    │   └── user-1001.slice
+    │       ├── user@1001.service
+    │       └── session-3.scope
+    │
+    └── machine.slice
+        ├── docker-<id>.scope
+        ├── libpod-<id>.scope
+        └── vm-<name>.scope 
+```
+1. system.slice
+부팅하면서 올라오는 주요 데몬들이 여기 들어간다. 즉, 운영체제 차원에서 돌아가는 서비스들이 system.slice 아래에 배치된다.
+
+예시
+- nginx.service
+- sshd.service
+- httpd.service
+- NetworkManager.service
+
+2. user.slice
+사용자 로그인 세션과 사용자별 프로세스용 공간이다. 즉, 사람이 로그인해서 쓰는 프로그램들은 보통 user.slice 계층에 들어간다.
+
+예시(사용자가 해당 vm에 로그인하면)
+- user-1000.slice → UID 1000 사용자의 자원 그룹
+- user@1000.service → 해당 사용자용 systemd 인스턴스
+- session-1.scope → 로그인 세션 하나
+- 그 안에서 실행한 shell, editor, app 등이 포함
+
+3. machine.slice
+VM, 컨테이너 같은 격리된 머신 단위 워크로드를 위한 공간이다. 즉, 시스템 서비스도 아니고 일반 로그인 사용자 세션도 아닌, 독립된 실행 환경을 보통 여기에 넣는다.
+
+예시
+- Docker 컨테이너
+- Podman 컨테이너
+- vm
+
 
 
 
