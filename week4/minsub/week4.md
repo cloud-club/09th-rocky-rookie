@@ -68,6 +68,9 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 
 먼저 `systemctl` 을 통해 현재 시스템에서 서비스 관리가 어떻게 이루어지는지 확인했다.
 
+<img width="655" height="472" alt="image" src="https://github.com/user-attachments/assets/ab79c814-12e4-4817-aeae-d01f28c5e70d" />
+
+
 - `systemctl list-units --type=service | head -20` : 현재 로드된 서비스 유닛 목록을 앞부분 20줄만 확인
 
 다양한 서비스 리스트와 각 서비스마다의 `loaded` , `active` , `running`  등의 상태가 표시되는 걸 확인했다.
@@ -77,6 +80,12 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 ### 1-2. 특정 서비스 상태 확인
 
 실습에서는 비교적 익숙한 `sshd`  또는 `crond`  같은 서비스를 대상으로 상태를 확인했다.
+
+<p align="center">
+<img width="45%" height="235" alt="image" src="https://github.com/user-attachments/assets/369fd646-bee4-40ce-ad35-9673ac384168" />
+<img width="45%" height="342" alt="image" src="https://github.com/user-attachments/assets/81569bf6-67d2-4f55-92d4-1e968c462969" />
+</p>
+
 
 - `systemctl status 서비스명` : 해당 서비스의 현재 상태 확인
 
@@ -90,6 +99,9 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 - `sudo systemctl stop crond` : 서비스 중지
 - `sudo systemctl restart crond` : 서비스 재시작
 
+<img width="649" height="73" alt="image" src="https://github.com/user-attachments/assets/0c1f89db-ee6a-429b-9938-fe4e2190524b" />
+
+
 
 중지 후 다시 상태를 확인하여, 서비스 상태가 바뀌는 것을 확인
 
@@ -102,6 +114,9 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 
 이 과정으로 서비스의 현재 실행 상태와, 부팅 시 자동 실행 여부는 별개의 개념이라는 것을 알 수 있고, 아래 명령을 실행해서 자동 시작 여부를 확인할 수 있다.
 
+<img width="423" height="45" alt="image" src="https://github.com/user-attachments/assets/ab6156ac-c140-4a6a-a472-ab924426f783" />
+
+
 - `systemctl is-enabled crond`
 
 ## 2. 프로세스 관리 실습
@@ -113,12 +128,21 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 - `ps -ef` : 전체 프로세스를 포맷 형태로 출력
 - `ps aux` : CPU, 메모리 사용량 등을 포함해 상세 출력
 
+<p align="center">
+<img width="45%" height="291" alt="image" src="https://github.com/user-attachments/assets/b632c66f-b850-431f-8e52-e9782f5af5d3" />
+<img width="45%" height="233" alt="image" src="https://github.com/user-attachments/assets/66fcbe10-c3d9-40ba-a0bb-cf55c3be4ce8" />
+</p>
+
+
 이 명령을 통해 각 프로세스의 사용자, PID, CPU 사용량, 실행 명령 등을 확인할 수 있다.
 
 
 ### 2-2. 실시간 프로세스 조회
 
 현재 실행 중인 프로세스를 실시간으로 보고 싶을 땐 `top` 을 사용할 수 있다.
+
+<img width="642" height="187" alt="image" src="https://github.com/user-attachments/assets/7dc0ee0f-9210-4007-94e9-f438c129f552" />
+
 
 
 - `top` : CPU, 메모리, 실행 시간 등을 기준으로 ‘실시간’ 프로세스 상태 표시
@@ -132,6 +156,9 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 
 터미널이 점유될 것을 감안하여, 백그라운드로 실행했다.
 
+<img width="529" height="89" alt="image" src="https://github.com/user-attachments/assets/9b399fb0-d4fe-49aa-9a19-68dee37f55dc" />
+
+
 
 - `sleep 1000` : 1000초 동안 대기하는 프로세스를 백그라운드로 실행
 - `ps -ef | grep sleep` : pid 확인
@@ -139,6 +166,9 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 ### 2-4. 프로세스 종료
 
 실행 중인  프로세스는 `kill` 을 통해 종료한다.
+
+<img width="324" height="52" alt="image" src="https://github.com/user-attachments/assets/ee19dcb5-bf48-4992-a410-7ba291ff94a7" />
+
 
 본인은 방금 실행한 sleep 프로세스를 종료시켰다.
 
@@ -155,10 +185,14 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 
 ### nice 값과 함께 실행
 
+<img width="396" height="55" alt="image" src="https://github.com/user-attachments/assets/2bca2342-8464-4aaf-b380-5a39cf6d2694" />
+
 
 - `nice -n 10 sleep 1000 &` : 우선순위를 낮춰서 실행
 
 ### 실행 중인 프로세스 우선순위 조정
+
+<img width="423" height="68" alt="image" src="https://github.com/user-attachments/assets/967cd64d-f561-4be1-b34a-3e8ed736b282" />
 
 
 - `renice 5 -p PID` : 실행 중인 프로세스의 nice 값 변경
@@ -173,10 +207,15 @@ RHEL에서는 대부분의 서비스 관리가 `systemd`  기반으로 이루어
 
 running 여부 확인 (`systemctl status crond` )
 
+<img width="554" height="85" alt="image" src="https://github.com/user-attachments/assets/4a2af3f9-6d1f-4ff4-86d7-9e4ca5d9239b" />
+
+
 
 ### 3-2. crontab 등록
 
 사용자 단위 반복 작업은 `crontab` 으로 관리할 수 있다.
+
+<img width="413" height="195" alt="image" src="https://github.com/user-attachments/assets/30c849fa-5845-48aa-b53e-3ef1c8923b5e" />
 
 
 테스트 작업 등록을 해보았고,
@@ -190,6 +229,8 @@ running 여부 확인 (`systemctl status crond` )
 - 다섯 번째: 매요일
 - `date >> ...` : 현재 시간 문자열을 파일 끝에 계속 추가
 
+<img width="480" height="144" alt="image" src="https://github.com/user-attachments/assets/1d48425d-7da0-433f-85de-c026dc7bed7a" />
+
 
 지정한대로 매분마다 잘 실행되고 있음을 확인했다.
 
@@ -199,13 +240,19 @@ running 여부 확인 (`systemctl status crond` )
 
 먼저 `atd` 서비스 상태를 확인 (running 여부)
 
+<img width="393" height="111" alt="image" src="https://github.com/user-attachments/assets/291c29db-7539-4286-bc20-f797c0ba09e4" />
+
 
 만약에 여기서 꺼져 있으면, `sudo systemctl start atd` 로 키면 된다.
+
+<img width="419" height="93" alt="image" src="https://github.com/user-attachments/assets/0edea588-f898-4280-b936-5fcb4f6a52a6" />
 
 
 `Ctrl + D` 로 프롬프트를 닫고 `atq` 를 통해 예약 목록을 확인한다. 여기서 `ls -l /home/minsubyun/at_test.txt` 로 파일이 생겼는지 확인을 하는데, `atq` 에서 보이는(내가 지정한) 시간대가 지나야 생성이 된다.
 
 즉, 지정한 대로 잘 된 것이다.
+
+<img width="657" height="206" alt="image" src="https://github.com/user-attachments/assets/97afecef-8497-4a97-b43e-f3e60b6dc1c8" />
 
 
 ## 4. 컨트롤 그룹(cgroup)
