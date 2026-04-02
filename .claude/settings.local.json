@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv image.png images/fdisk-info.png)",
+      "Bash(mv image-1.png images/blkid-df.png)",
+      "Bash(mv image-2.png images/mount-info.png)",
+      "Bash(mv image-3.png images/fstab-content.png)",
+      "Bash(mv image-4.png images/pv-info.png)"
+    ]
+  }
+}
