@@ -600,3 +600,238 @@ sudo setsebool -P httpd_can_network_connect on
 - [Red Hat - Configuring and Managing Networking](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/)
 - [Red Hat - Using and Configuring firewalld](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/securing_networks/using-and-configuring-firewalld_securing-networks)
 - [Red Hat - Using SELinux](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/using_selinux/)
+
+---
+
+# Hyper-V Default Switch IP 변동 문제와 Internal Switch + NAT 해결
+
+### 배경
+
+회사에서 Fasoo DRM 제품(FED5, FUT 등)을 Rocky Linux 10.1 VM에 설치하는 작업을 진행하고 있었습니다. Hyper-V로 VM을 생성할 때 기본 제공되는 **Default Switch**를 사용했는데, **호스트 PC를 재부팅할 때마다 VM의 IP가 바뀌는 문제**가 발생했습니다.
+
+서버 제품들의 config 파일에 IP가 하드코딩되어 있어서, 매번 재부팅 후 수십 개의 설정 파일을 `sed`로 일괄 치환해야 하는 상황이 반복되었습니다.
+
+---
+
+### 1. 왜 Default Switch에서 IP가 바뀌는가?
+
+**Default Switch의 동작 원리:**
+
+```
+[호스트 PC 부팅]
+    │
+    ▼
+Hyper-V가 Default ~~Switch~~ 초기화
+    │
+    ▼
+내부적으로 ICS(Internet Connection Sharing) 기반의
+DHCP 서버가 새로운 서브넷을 랜덤 할당
+    │
+    ▼
+예: 이번엔 172.25.224.0/20, 다음엔 192.168.132.0/20 ...
+    │
+    ▼
+VM이 부팅되면 DHCP로 해당 서브넷 내의 IP를 자동 수신
+    │
+    ▼
+예: 172.25.233.46 → 재부팅 후 → 192.168.132.16
+```
+
+**핵심 원인:** Default Switch는 Hyper-V가 **자체 관리하는 NAT 스위치**로, 사용자가 서브넷이나 DHCP 범위를 제어할 수 없습니다. 호스트가 재부팅될 때마다 ICS 서비스가 재시작되면서 **서브넷 자체가 바뀝니다.**
+
+따라서 VM 내부에서 고정 IP를 설정하더라도, 게이트웨이(Default Switch)의 서브넷이 바뀌면 **통신 자체가 불가능**해집니다.
+
+---
+
+### 2. Default Switch 사용 시 네트워크 구조
+
+```
+┌─────────────────────────────────────────────────┐
+│  Windows 호스트 PC (사내망: 192.168.x.x)          │
+│                                                   │
+│  ┌──────────────────────┐                         │
+│  │  Default Switch      │  ← Hyper-V 자체 관리    │
+│  │  (ICS 기반 NAT)      │  ← 서브넷 재부팅마다 변동 │
+│  │                      │                         │
+│  │  GW: 172.25.224.1    │  ← 이번 부팅             │
+│  │  GW: 192.168.132.1   │  ← 다음 부팅 (바뀜!)     │
+│  └──────┬───────────────┘                         │
+│         │ DHCP                                    │
+│  ┌──────▼───────────────┐                         │
+│  │  Rocky Linux VM      │                         │
+│  │  IP: ???.???.???.??  │  ← 매번 바뀜             │
+│  │  (DHCP 자동 할당)     │                         │
+│  └──────────────────────┘                         │
+└─────────────────────────────────────────────────┘
+
+문제: 서브넷 자체가 바뀌므로 고정 IP 설정도 무의미
+```
+
+---
+
+### 3. 해결: Internal Switch + NAT 구성
+
+**핵심 아이디어:** Default Switch 대신 **직접 만든 Internal Switch**를 사용하고, NAT와 게이트웨이 IP를 **수동으로 고정**합니다.
+
+### 3-1. Windows PowerShell(관리자)에서 실행
+
+```powershell
+# 1단계: Internal 타입의 가상 스위치 생성
+New-VMSwitch -Name "FasooNAT" -SwitchType Internal
+
+# 2단계: 호스트 측 가상 어댑터에 고정 IP 할당 (이것이 VM의 게이트웨이가 됨)
+New-NetIPAddress -IPAddress 192.168.100.1 -PrefixLength 24 -InterfaceAlias "vEthernet (FasooNAT)"
+
+# 3단계: NAT 규칙 생성 (VM이 인터넷 접속할 수 있도록)
+New-NetNat -Name "FasooNATNetwork" -InternalIPInterfaceAddressPrefix 192.168.100.0/24
+```
+
+### 3-2. Hyper-V에서 VM 네트워크 어댑터 변경
+
+VM 설정 → 네트워크 어댑터 → 가상 스위치를 **Default Switch → FasooNAT**으로 변경
+
+### 3-3. VM 내부에서 고정 IP 설정
+
+```bash
+nmcli con mod "eth0" ipv4.addresses 192.168.100.10/24
+nmcli con mod "eth0" ipv4.gateway 192.168.100.1
+nmcli con mod "eth0" ipv4.dns "8.8.8.8"
+nmcli con mod "eth0" ipv4.method manual
+nmcli con up "eth0"
+```
+
+---
+
+### 4. 해결 후 네트워크 구조
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Windows 호스트 PC (사내망: 10.x.x.x)                     │
+│                                                            │
+│  ┌─────────────────────────────┐                           │
+│  │  vEthernet (FasooNAT)       │  ← 사용자가 직접 생성      │
+│  │  IP: 192.168.100.1/24       │  ← 고정! 재부팅해도 불변    │
+│  │  역할: VM의 게이트웨이        │                           │
+│  └──────────┬──────────────────┘                           │
+│             │                                              │
+│  ┌──────────▼──────────────────┐    ┌───────────────────┐  │
+│  │  Rocky Linux VM             │    │  Windows NAT      │  │
+│  │  IP: 192.168.100.10/24      │    │  192.168.100.0/24 │  │
+│  │  GW: 192.168.100.1          │───▶│  → 호스트 외부망   │  │
+│  │  DNS: 8.8.8.8               │    │    (인터넷/사내망)  │  │
+│  │  (수동 고정)                 │    └───────────────────┘  │
+│  └─────────────────────────────┘                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 5. 통신 흐름 비교
+
+### Before (Default Switch)
+
+```
+[VM] 172.25.233.46 → [Default Switch GW] 172.25.224.1 → [호스트] → 인터넷
+                      ↑ 재부팅하면 서브넷 자체가 바뀜
+[VM] ???.???.???.?? → [Default Switch GW] ???.???.???.1 → [호스트] → 인터넷
+```
+
+| 구분 | 호스트 부팅 1회차 | 호스트 부팅 2회차 | 호스트 부팅 3회차 |
+| --- | --- | --- | --- |
+| 서브넷 | 172.25.224.0/20 | 192.168.132.0/20 | 172.30.16.0/20 |
+| VM IP | 172.25.233.46 | 192.168.132.16 | 172.30.22.xxx |
+| GW | 172.25.224.1 | 192.168.132.1 | 172.30.16.1 |
+
+### After (Internal Switch + NAT)
+
+```
+[VM] 192.168.100.10 → [FasooNAT GW] 192.168.100.1 → [NAT] → [호스트] → 인터넷
+     ↑ 항상 고정         ↑ 항상 고정
+```
+
+| 구분 | 호스트 부팅 1회차 | 호스트 부팅 2회차 | 호스트 부팅 N회차 |
+| --- | --- | --- | --- |
+| 서브넷 | 192.168.100.0/24 | 192.168.100.0/24 | 192.168.100.0/24 |
+| VM IP | 192.168.100.10 | 192.168.100.10 | 192.168.100.10 |
+| GW | 192.168.100.1 | 192.168.100.1 | 192.168.100.1 |
+
+---
+
+### 6. 왜 이 방법이 안전한가 (사내망 영향 없음)
+
+- **Internal Switch**는 호스트 PC 내부에서만 존재하는 가상 네트워크
+- 사내 물리 네트워크에 브릿지되지 않음
+- VM의 외부 통신은 Windows NAT를 통해 호스트 PC의 IP로 나감 (SNAT)
+- 사내 다른 PC에서 VM에 직접 접근 불가 (호스트 PC에서만 접근 가능)
+- 기존 사내망 IP 대역과 충돌하지 않도록 `192.168.100.0/24`처럼 사용하지 않는 대역 선택
+
+---
+
+### 7. 실무에서 겪은 시행착오
+
+| 문제 상황 | 원인 | 조치 |
+| --- | --- | --- |
+| 재부팅 후 FED5 접속 불가 | config 파일에 이전 IP가 하드코딩 | `sed -i 's/이전IP/새IP/g'`로 6개 config 파일 일괄 치환 |
+| FED5 로그인 시 "Unverified redirects" | `appserver.config`의 `<domain>` 값이 이전 IP | domain IP 치환 후 재기동 |
+| FUT→FED5 연동 실패 (Connection refused) | FED5 config에 FUT 포트가 잘못 설정 (8081→7081) | 포트 번호 치환 |
+| IP 변경 작업을 3번 반복 후 NAT 구성 결정 | Default Switch의 근본적 한계 | Internal Switch + NAT로 영구 해결 |
+
+---
+
+### 요약
+
+Default Switch는 편리하지만 **서버 제품처럼 IP 의존성이 있는 환경에서는 부적합**합니다. Internal Switch + NAT 구성은 한 번만 설정하면 영구적으로 IP가 고정되며, 사내망에 영향을 주지 않는 안전한 방법입니다.
+
+---
+
+### **1. ICS가 뭐야?**
+
+**Internet Connection Sharing** — Windows에 내장된 인터넷 공유 기능입니다. 호스트 PC의 인터넷을 다른 네트워크 어댑터에 공유해주는 역할인데, Default Switch가 내부적으로 이걸 사용합니다. 문제는 ICS가 재시작될 때마다 **자기가 관리하는 서브넷을 새로 생성**한다는 점입니다.
+
+### **2. DHCP 서버가 따로 있는 건가?**
+
+별도 DHCP 서버가 있는 게 아니라, **Default Switch 자체가 간이 DHCP 서버 역할**을 합니다. Default Switch가 ICS를 통해 DHCP를 자동으로 돌리면서 VM에 IP를 할당해주는 구조입니다. 그래서 Default Switch의 서브넷이 바뀌면 → DHCP가 주는 IP도 바뀌는 것입니다.
+
+우리가 만든 Internal Switch + NAT 구성에서는 **DHCP를 안 쓰고** VM 내부에서 `nmcli`로 직접 고정 IP를 수동 설정한 것이라 DHCP 의존성이 없습니다.
+
+### **3. Internal Switch가 뭐야?**
+
+Hyper-V 가상 스위치에는 3가지 타입이 있습니다:
+
+| **타입** | **연결 범위** | **특징** |
+| --- | --- | --- |
+| **External** | 호스트 + VM + 외부 네트워크 | 물리 NIC에 브릿지, 사내망에 직접 노출 |
+| **Internal** | 호스트 ↔ VM만 통신 | 외부 네트워크와 직접 연결 안 됨 |
+| **Private** | VM ↔ VM만 통신 | 호스트도 접근 불가 |
+
+우리가 만든 `FasooNAT`은 **Internal** 타입이라 호스트 PC와 VM 사이에서만 동작하는 **격리된 가상 네트워크**입니다. 여기에 Windows NAT를 추가해서 인터넷 접속도 가능하게 한 것입니다.
+
+### **4. 로컬 PC에서 가상 스위치를 만들어서 VM을 고정하는 건가?**
+
+네 맞습니다. 정확한 구조는:
+
+`[VM: 192.168.100.10] ←──→ [가상 스위치 FasooNAT] ←──→ [호스트: 192.168.100.1]
+                                                            │
+                                                      [Windows NAT]
+                                                            │
+                                                      [사내망/인터넷]`
+
+- 가상 스위치(`FasooNAT`)를 직접 만들고
+- 호스트 측 IP를 `192.168.100.1`로 **고정**하고
+- VM 측 IP를 `192.168.100.10`으로 **고정**하고
+- NAT 규칙을 추가해서 인터넷도 되게 함
+
+**모든 것을 우리가 직접 제어**하기 때문에 재부팅해도 바뀔 일이 없습니다.
+
+### **5. 기존에는 Default Switch라서 바뀌었던 거지?**
+
+맞습니다. 정리하면:
+
+|  | **Default Switch** | **FasooNAT (Internal + NAT)** |
+| --- | --- | --- |
+| 서브넷 관리 | Hyper-V/ICS가 **자동** 관리 | **우리가 직접** 지정 |
+| IP 할당 | 내장 DHCP가 **자동** 할당 | `nmcli`로 **수동** 고정 |
+| 게이트웨이 | 재부팅마다 **변동** | `192.168.100.1` **고정** |
+| 사용자 제어 | **불가** (설정 변경 안 됨) | **완전 제어** 가능 |
+
+Default Switch는 "편하게 쓰라고" 만든 것이라 사용자가 설정을 건드릴 수 없고, 그래서 IP 고정이 근본적으로 불가능한 것입니다.
