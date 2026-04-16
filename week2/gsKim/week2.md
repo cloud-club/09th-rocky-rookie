@@ -167,6 +167,9 @@ chmod 644 file.txt
 ls -l을 통해 소유그룹과 소유자를 확인할 수 있다.
 -rw-r--r-- 1 gskim gskim  1200 Mar 19 10:00 file1.txt -> 소유자: gskim, 소유 그룹: gskim
 
+
+#umask
+
 #chown
 chown을 통해 파일의 소유자를 변경할 수 있다.
 sudo chown user1 test.txt: test.txt의 소유자를 user1으로 변경
