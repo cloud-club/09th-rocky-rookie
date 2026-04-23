@@ -2,19 +2,8 @@
 ## Log란?
 - Linux OS의 log는 커널, 서비스, 애플리케이션 등 시스템에 발생한 이벤트를 분류하여 기록한 파일이다.
 ## Linux Log Architecture
-[프로세스/커널]
-   ↓
-[로그 생성]
-   ↓
-[수집 데몬: rsyslog / syslog-ng / systemd-journald]
-   ↓
-[저장 위치]
-   ├─ /var/log/*.log
-   └─ journalctl이 보는 binary journal
-   ↓
-[관리]
-   ├─ logrotate
-   └─ 원격 로그 전송 / 보안 정책 / 모니터링
+<img width="416" height="268" alt="image" src="https://github.com/user-attachments/assets/64cd4510-5e3d-41c4-971e-2c4074055ec9" />
+
 
 ## Kerner Logging
 ### 의미
