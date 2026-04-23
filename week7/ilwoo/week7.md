@@ -514,125 +514,106 @@ sar -r -s 02:50:00 -e 03:10:00   # 장애 시각 ±10분
 | 네트워크가 이상함 | `ss -tulnp` → `sar -n DEV` → `dmesg \| grep -iE "link\|eth"` |
 | 부팅 후 서비스 안 뜸 | `journalctl -b -u X` → `systemctl list-units --failed` |
 
-### 8-4. 실습: 장애 현장에서 증거 남기기 (재시작 전에 해야 할 일)
+### 8-4. 실습: 장애 현장에서 증거 남기기 (10분 미니 실습)
 
-장애가 나면 개발자의 1차 본능은 **"일단 재시작"** 이다. 그런데 재시작하는 순간 메모리에 있던 **증거가 전부 사라진다**. 복기하려면 재시작 *전*에 덤프를 떠야 한다. 아래는 실제로 현장에서 순서대로 돌려볼 수 있는 실습이다.
+장애가 나면 1차 본능은 **"일단 재시작"** 이지만, 재시작하는 순간 메모리 안의 증거가 전부 사라진다. 아래 순서대로 VM에서 직접 돌려보면서 **"재시작 전에 뭘 떠야 하는가"** 를 몸에 익힌다.
 
-#### (1) 상황 파악 — 대상 프로세스 찾기
+#### ① 사전 준비 — 실습용 자바 프로세스 띄우기 (1분)
 
 ```bash
-# 자바 프로세스 일람 (PID + 메인 클래스)
+# JDK가 없다면 설치
+sudo dnf install -y java-17-openjdk-devel
+
+# 일부러 "멈춘 척 하는" 자바 프로세스 생성
+cat > /tmp/Stuck.java <<'EOF'
+public class Stuck {
+  public static void main(String[] a) throws Exception {
+    while (true) Thread.sleep(1000);
+  }
+}
+EOF
+cd /tmp && javac Stuck.java && java Stuck &
+```
+
+#### ② PID 찾기 (30초)
+
+```bash
+# 자바 프로세스 목록
 jps -l
-# 1234 org.springframework.boot.loader.JarLauncher
+# 예: 3421 Stuck
 
-# 특정 이름으로 PID 뽑기
-pgrep -f spring-app
-
-# 해당 프로세스의 현재 상태 한 줄
-ps -o pid,ppid,pcpu,pmem,rss,etime,stat,cmd -p 1234
+# 변수로 잡아두면 이후 명령이 편하다
+PID=$(pgrep -f Stuck)
+echo $PID
 ```
 
-#### (2) 힙 덤프(Heap Dump) — 메모리 스냅샷
-
-자바 프로세스의 **힙 전체**를 `.hprof` 파일로 떠낸다. 나중에 **Eclipse MAT**, **VisualVM**, **JProfiler**로 열어서 "누가 메모리를 먹고 있었는가"를 분석한다.
+#### ③ 스레드 덤프 — "지금 뭐하는 중?" (2분)
 
 ```bash
-# 방법 ① jcmd (권장, JDK 7+)
-jcmd <PID> GC.heap_dump /tmp/heap-$(date +%Y%m%d-%H%M).hprof
+# jstack으로 스레드 상태 저장
+jstack $PID > /tmp/thread.txt
+head -30 /tmp/thread.txt
 
-# 방법 ② jmap
-jmap -dump:format=b,file=/tmp/heap.hprof <PID>
-
-# live 객체만 (GC 후 살아남은 것만, 파일 크기 작아짐)
-jmap -dump:live,format=b,file=/tmp/heap-live.hprof <PID>
+# 스레드별 CPU 사용률 보기
+top -H -p $PID      # q로 종료
 ```
 
-> **주의**: 힙 덤프는 JVM을 **수 초~수십 초 멈춘다(STW)**. 운영 중인 서버라면 충격을 감수해야 한다. 이미 죽어가는 프로세스라면 얻을 게 더 많다.
+> 운영 팁: 똑같은 걸 **5초 간격으로 3번** 뜬다. 같은 스레드가 같은 위치에 멈춰있으면 그게 범인.
 
-**자동 힙 덤프 옵션**: 장애를 대비해 JVM 기동 옵션에 걸어두면 OOM 발생 시 자동으로 떠진다.
-```bash
--XX:+HeapDumpOnOutOfMemoryError
--XX:HeapDumpPath=/var/log/myapp/heap-dumps/
-```
-
-#### (3) 스레드 덤프(Thread Dump) — "지금 누가 뭘 하고 있는가"
-
-프로세스가 **멈춘 것처럼 보이는데 CPU는 100%** 인 상황(데드락, 무한 루프)에서는 힙이 아니라 **스레드 상태**가 답이다.
+#### ④ 힙 덤프 — "누가 메모리를 먹는가?" (2분)
 
 ```bash
-# 방법 ① jstack
-jstack <PID> > /tmp/thread-$(date +%H%M).txt
+# jcmd로 힙 덤프 (권장)
+jcmd $PID GC.heap_dump /tmp/heap.hprof
 
-# 방법 ② kill -3 (SIGQUIT) — JVM이 stdout/catalina.out에 스레드 덤프를 뱉는다
-kill -3 <PID>
-
-# 데드락 감지 포함
-jcmd <PID> Thread.print > /tmp/threads.txt
+# 파일 생성 확인
+ls -lh /tmp/heap.hprof
 ```
 
-운영 팁: 5초 간격으로 **3번** 떠서 비교한다. 같은 스레드가 같은 위치에 멈춰있으면 진범이다.
-```bash
-for i in 1 2 3; do jstack <PID> > /tmp/thread-$i.txt; sleep 5; done
-```
+> `.hprof` 파일은 나중에 **Eclipse MAT** / **VisualVM**으로 열어 분석. 실제로 열어보는 것까지는 오늘 생략.
+> **주의**: 힙 덤프 뜨는 동안 JVM은 멈춘다(STW). 운영 서버에선 주의.
 
-#### (4) 어떤 스레드가 CPU를 먹는가 — top -H
+#### ⑤ 프로세스가 뭘 열고 있는지 (1분)
 
 ```bash
-# 스레드 단위 CPU 사용률
-top -H -p <PID>
-# → 특정 TID가 100% → 그 TID를 16진수로 변환
-printf "%x\n" <TID>
-# → jstack 결과에서 "nid=0x<16진수>" 로 찾으면 해당 Java 스레드가 보인다
+# 열린 파일·소켓·라이브러리
+sudo lsof -p $PID | head -10
+
+# 지금 어떤 시스템 콜에서 대기 중인가 (Ctrl+C로 종료)
+sudo strace -p $PID -tt
 ```
 
-#### (5) 자바가 아닐 때 — 일반 프로세스 코어 덤프
+#### ⑥ 증거 폴더 한 방에 만들기 (2분)
 
 ```bash
-# gcore: 실행 중인 프로세스의 현재 상태를 core 파일로 덤프
-sudo gcore -o /tmp/core <PID>
-# → /tmp/core.<PID> 생성, gdb로 분석 가능
+# 장애 시점 증거를 한 디렉토리에 모아두면 나중에 분석이 편하다
+DIR=/tmp/incident-$(date +%H%M) && mkdir -p $DIR && cd $DIR
+
+uptime               > state.txt
+free -h             >> state.txt
+df -h               >> state.txt
+ps auxf             >> state.txt
+jstack $PID          > thread.txt
+jcmd $PID GC.heap_dump $PWD/heap.hprof
+sudo dmesg -T        > dmesg.log
+sudo journalctl -b   > journal.log
+
+ls -lh
 ```
 
-#### (6) 프로세스가 뭘 열고 있었는지
+#### ⑦ 정리 (30초)
 
 ```bash
-# 열려있는 파일, 소켓, 라이브러리
-sudo lsof -p <PID> | head -30
-
-# 현재 실행 중인 시스템 콜 실시간 추적 (멈춘 원인 파악에 유용)
-sudo strace -p <PID> -tt -T -e trace=network,read,write
-#   Ctrl+C로 종료. -tt 시각, -T 소요시간
+# 실습용 프로세스 종료
+kill $PID
+# (혹은) 수집한 증거 폴더 확인 후 삭제
+ls /tmp/incident-*
 ```
 
-#### (7) 재시작 직전 체크리스트
-
-```bash
-# ✅ 실습 시나리오: 아래 순서대로 저장한 뒤에 재시작한다
-mkdir -p /tmp/incident-$(date +%Y%m%d-%H%M) && cd $_
-
-# ① 서비스 로그 저장
-sudo journalctl -u my-service --since "1 hour ago" > journal.log
-
-# ② 시스템 상태 스냅샷
-uptime > state.txt
-free -h >> state.txt
-df -h >> state.txt
-ps auxf >> state.txt
-ss -tulnp >> state.txt 2>/dev/null
-
-# ③ 자바 증거물
-jcmd <PID> GC.heap_dump $(pwd)/heap.hprof
-jstack <PID> > thread.txt
-jcmd <PID> VM.system_properties > props.txt
-
-# ④ 커널/OOM 흔적
-sudo dmesg -T > dmesg.log
-
-# ⑤ 이제 재시작해도 된다
-sudo systemctl restart my-service
-```
-
-이렇게 **`/tmp/incident-YYYYMMDD-HHMM/`** 디렉토리 하나에 모아두면, 나중에 로컬로 내려받아 여유 있게 분석할 수 있다. 재시작으로 휘발되는 **메모리·스레드·네트워크 상태**를 보존하는 것이 핵심이다.
+**이번 실습으로 얻는 감각**:
+- `jps / jstack / jcmd`가 JDK에 기본 내장이라 **추가 설치 없이** 바로 쓸 수 있다
+- 재시작 전 **몇 분의 투자**로 사후 분석이 가능해진다
+- `$DIR`에 모으는 스크립트는 팀에 공유해두면 온콜(on-call) 대응 SOP가 된다
 
 ---
 
