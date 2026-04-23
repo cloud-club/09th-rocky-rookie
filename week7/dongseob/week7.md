@@ -20,6 +20,7 @@
 
 
 ## 2-1. 전체 구조
+
 ```text
 프로그램 / 서비스 / 커널
         │
@@ -33,6 +34,7 @@
                  ▼
              /var/log/*
 ```
+
 
 * journald = 로그를 중앙 수집
 * journalctl = journald 조회 도구
@@ -52,6 +54,7 @@ systemd-journald : systemd 기반 로그 수집 데몬 + “로그 수집 허브
 * syslog 메시지 수집
 * 바이너리 형식으로 저장
 * journalctl로 조회
+
 
 기본 저장 위치:
 - /run/log/journal/      : 휘발성 (재부팅 시 사라질 수 있음)
@@ -137,7 +140,6 @@ tail -n 숫자 /var/log/messages
 | `Accepted password ...` | 실제 이벤트 내용 |
 
 -> 로그 구조 : 시간 + 호스트 + 프로세스 + 메시지
-
 
 
 # 5. 로그 레벨(Log Level)
@@ -258,6 +260,7 @@ journalctl -u <service> -b --no-pager
 
 ## 7-1. 대표 원인
 
+
 | 로그 메시지 | 가능한 원인 |
 |---|---|
 | `Permission denied` | 권한 문제 / SELinux |
@@ -270,7 +273,6 @@ journalctl -u <service> -b --no-pager
 
 
 ## 7-2. 분석 명령어 세트
-
 ```bash
 // 특정 서비스의 현재 상태 확인
 // - Loaded, Active, Main PID, 최근 로그 일부 등을 함께 보여줌
