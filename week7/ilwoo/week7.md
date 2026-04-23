@@ -21,40 +21,62 @@
 
 ## 3. 핵심 개념 정리
 
-### 3-1. 리눅스에서 로그가 왜 중요한가
+### 3-1. 로그 시스템의 두 축: rsyslog와 systemd-journald
 
-서버는 **말을 못 한다**. 뭔가 잘못됐을 때 "지금 이래서 이 모양이에요"라고 알려주지 않는다. 대신 모든 사건을 **로그 파일**에 기록한다. 그래서 운영 관점에서 로그는 다음 역할을 한다.
-
-| 용도 | 예시 |
-|------|------|
-| **장애 원인 추적** | 서비스가 왜 죽었는가? OOM? 설정 오류? |
-| **보안 감사** | 누가 언제 로그인했는가? sudo를 썼는가? |
-| **성능 분석** | 어떤 요청이 느렸는가? 어느 시점에 부하가 몰렸는가? |
-| **컴플라이언스** | 감사(Audit) 요건상 접근 기록 보관 |
-
-> 문제가 터졌을 때 가장 먼저 하는 일은 **"로그를 본다"** 이다. 로그를 잘 읽는 능력이 곧 장애 대응력이다.
-
-### 3-2. 로그 시스템의 진화: rsyslog → systemd-journald
-
-전통적으로 리눅스 로그는 `rsyslog(syslog 데몬)`이 텍스트 파일(`/var/log/*`)에 기록하는 방식이었다. systemd가 도입되면서 **바이너리 로그 시스템**인 `systemd-journald`가 추가되었고, 현재 RHEL 8/9는 **두 시스템이 공존**한다.
+리눅스에는 오랜 시간에 걸쳐 만들어진 **두 개의 로그 수집 체계**가 있다. 배포판마다 어느 쪽을 "주인공"으로 두느냐가 다른데, 이 구조를 모르면 "같은 이벤트를 두 군데서 찾는" 혼란이 생긴다.
 
 | 구분 | rsyslog (전통 방식) | systemd-journald (현대 방식) |
 |------|---------------------|------------------------------|
-| **저장 위치** | `/var/log/messages`, `/var/log/secure` 등 | `/run/log/journal/` (메모리) 또는 `/var/log/journal/` (디스크) |
-| **형식** | 텍스트 | 바이너리 + 메타데이터 (JSON 변환 가능) |
+| **등장 시기** | 1980년대 syslog → 2004년 rsyslog | 2011년 systemd와 함께 |
+| **저장 위치** | `/var/log/messages`, `/var/log/secure` 등 **텍스트 파일** | `/run/log/journal/` (tmpfs) 또는 `/var/log/journal/` **바이너리** |
+| **형식** | 텍스트 | 바이너리 + 구조화 메타데이터 (JSON 변환 가능) |
 | **조회 도구** | `cat`, `grep`, `less`, `tail` | `journalctl` |
 | **필터링** | 텍스트 매칭 | 서비스/시간/PID/우선순위로 **구조화 질의** |
-| **지속성** | 기본 지속 | 기본은 재부팅 시 휘발 (설정으로 영속 가능) |
+| **기본 지속성** | 영속 | 배포판에 따라 휘발 or 영속 |
+| **원격 전송** | 네트워크 전송에 강함 (TCP/TLS, RELP) | 기본은 로컬, `systemd-journal-remote` 별도 |
+
+#### 배포판별로 어떻게 쓰는가
+
+systemd를 쓰는 주요 배포판은 **모두 journald가 기본 탑재**된다. 차이는 **rsyslog를 함께 돌리느냐**, **journald만으로 끝내느냐** 이다.
+
+| 배포판 | journald | rsyslog | 동작 방식 |
+|--------|----------|---------|-----------|
+| **RHEL 7/8/9, Rocky, CentOS Stream** | 기본 | **기본 설치** | journald → rsyslog로 forward → `/var/log/messages` 생성 |
+| **Fedora** (최신) | 기본 | **기본 제거됨** | journald 단독. `journalctl`로만 조회 |
+| **Ubuntu 18.04 ~ 현재** | 기본 | 기본 설치(LTS) / 선택(Server 최신) | 둘 다 씀. 20.04부터 rsyslog 비중 축소 추세 |
+| **Debian 10+** | 기본 | 기본 설치 | RHEL과 유사하게 둘 다 씀 |
+| **Arch, openSUSE Tumbleweed** | 기본 | 기본 미설치 | journald 단독 |
+| **Alpine** (musl) | 없음 | `busybox syslogd` 또는 rsyslog | systemd 자체가 없음 → syslog 계열만 사용 |
+
+**핵심 요점**:
+- **"RHEL 계열 = rsyslog + journald 공존"**: 익숙한 `/var/log/messages`가 여전히 생긴다
+- **"Fedora/Arch = journald 단독"**: `/var/log/messages`가 없다. `journalctl`이 유일한 창구
+- **"Ubuntu는 과도기"**: 버전에 따라 다르므로 `systemctl status rsyslog`로 실제 설치 여부를 먼저 확인
+
+#### 두 시스템이 공존할 때의 데이터 흐름
 
 ```
- 애플리케이션 ── syslog() ──▶ systemd-journald ──▶ /run/log/journal/
-                                   │
-                                   └─ forward ─▶ rsyslog ─▶ /var/log/messages
+ 애플리케이션 ── syslog() / stderr ──▶ systemd-journald
+                                             │
+                          ┌──────────────────┤
+                          ▼                  ▼
+                 /run/log/journal/     imjournal (rsyslog 입력 모듈)
+                 (journalctl로 조회)           │
+                                              ▼
+                                     /var/log/messages
+                                     /var/log/secure
+                                     /var/log/cron ...
 ```
 
-journald는 수신한 로그를 **rsyslog로 전달**해서 텍스트 파일에도 쌓이게 한다. 그래서 같은 이벤트를 `journalctl`로도 `/var/log/messages`로도 볼 수 있다.
+RHEL 계열에서는 rsyslog 설정 파일(`/etc/rsyslog.conf`)에 `module(load="imjournal")`이 기본으로 들어있어서 **journald가 받은 로그를 rsyslog가 다시 긁어다가 텍스트 파일로 쓴다**. 그래서 같은 이벤트를 `journalctl`로도 `/var/log/messages`로도 볼 수 있다.
 
-### 3-3. 주요 로그 파일 구조 (`/var/log`)
+#### 그럼 실무에서는 뭘 쓰나
+
+- **단일 서버 디버깅**: `journalctl -u <서비스>` 가 압도적으로 편하다 (구조화 질의)
+- **중앙 로그 서버로 전송**: 여전히 rsyslog가 유리 (TCP/TLS forwarding이 성숙)
+- **컨테이너/쿠버네티스**: journald도 rsyslog도 아닌 **stdout/stderr → 컨테이너 런타임 → Fluentd/Loki** 흐름이 표준
+
+### 3-2. 주요 로그 파일 구조 (`/var/log`)
 
 ```bash
 ls -l /var/log
@@ -87,7 +109,7 @@ sudo logrotate -f /etc/logrotate.conf
 
 결과물은 `messages-20260423`, `messages.1.gz` 같은 형태로 남는다.
 
-### 3-4. journalctl 실전 사용법
+### 3-3. journalctl 실전 사용법
 
 `journalctl`은 systemd-journald의 로그를 질의하는 명령어다. 텍스트 `grep`보다 **구조화된 필터**를 쓸 수 있어서 훨씬 강력하다.
 
@@ -153,7 +175,7 @@ sudo journalctl --vacuum-size=1G
 sudo journalctl --vacuum-time=2weeks
 ```
 
-### 3-5. 로그 레벨(Severity)
+### 3-4. 로그 레벨(Severity)
 
 syslog/journald는 **8단계 우선순위**를 쓴다. 숫자가 작을수록 치명적이다.
 
