@@ -374,6 +374,9 @@ iostat -xz 1
 vmstat 2 5
 ```
 
+![alt text](image-1.png)
+`uptime`으로 load average 확인, `free -h`로 실제 available 메모리 점검, `df -h`로 디스크 사용률, `ps aux --sort=-%cpu`로 CPU 상위 프로세스(`packagekitd`, `gnome-shell` 등)까지 한 번에 파악.
+
 ---
 
 # Part 3. 하드웨어 리소스 점검 + 장애 분석
@@ -557,6 +560,9 @@ head -30 /tmp/thread.txt
 # 스레드별 CPU 사용률 보기
 top -H -p $PID      # q로 종료
 ```
+
+![alt text](image-2.png)
+`CpuBurner` 스레드가 혼자 **99.7% CPU**를 먹고 있는 게 보인다. 그 아래 `MemoryEater`, `GC Thread#0~5`, `G1 Service` 등 JVM 내부 스레드도 모두 드러난다. 하단의 `heap used: 25 MB` 출력은 `MemoryEater`가 1초마다 1MB씩 쌓고 있다는 증거.
 
 > 운영 팁: 똑같은 걸 **5초 간격으로 3번** 뜬다. 같은 스레드가 같은 위치에 멈춰있으면 그게 범인.
 
