@@ -242,17 +242,7 @@ uptime
 ```bash
 top
 ```
-
-```
-top - 14:32:11 up 3 days,  load average: 0.85, 0.92, 0.77
-Tasks: 185 total,   1 running, 184 sleeping
-%Cpu(s):  3.2 us,  1.1 sy,  0.0 ni, 95.5 id,  0.2 wa
-MiB Mem :   7977.5 total,   2134.2 free,   3210.8 used,   2632.5 buff/cache
-MiB Swap:   2048.0 total,   2048.0 free,      0.0 used.
-
-  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM   TIME+ COMMAND
- 1234 ooo426    20   0 4823456 512344  23456 S  15.3   6.3  12:45.67 java
-```
+![alt text](image-5.png)
 
 | 항목 | 의미 |
 |------|------|
@@ -407,7 +397,7 @@ lsusb
 # 전체 하드웨어 요약
 sudo lshw -short
 ```
-
+![alt text](image-3.png)
 ### 7-2. 커널 메시지와 dmesg
 
 `dmesg`는 커널 **링 버퍼**를 보여준다. 하드웨어 이벤트, 드라이버 메시지, **OOM Killer**, 디스크 에러 등 저수준 문제의 흔적이 여기에 먼저 남는다.
@@ -425,6 +415,7 @@ sudo dmesg -T | grep -iE "error|fail"
 # USB가 안 잡힐 때 꽂으면서 보기
 sudo dmesg -wT
 ```
+![alt text](image-4.png)
 
 ### 7-3. sar로 과거 기록 분석
 
@@ -517,11 +508,11 @@ sar -r -s 02:50:00 -e 03:10:00   # 장애 시각 ±10분
 | 네트워크가 이상함 | `ss -tulnp` → `sar -n DEV` → `dmesg \| grep -iE "link\|eth"` |
 | 부팅 후 서비스 안 뜸 | `journalctl -b -u X` → `systemctl list-units --failed` |
 
-### 8-4. 실습: 장애 현장에서 증거 남기기 (10분 미니 실습)
+### 8-4. 실습: 장애 현장에서 증거 남기기
 
-장애가 나면 1차 본능은 **"일단 재시작"** 이지만, 재시작하는 순간 메모리 안의 증거가 전부 사라진다. 아래 순서대로 VM에서 직접 돌려보면서 **"재시작 전에 뭘 떠야 하는가"** 를 몸에 익힌다.
+장애가 나면 1차 본능은 **"일단 재시작"** 이지만, 재시작하는 순간 메모리 안의 증거가 전부 사라진다. 그래서 덤프를 떠야한다!
 
-#### ① 사전 준비 — 실습용 자바 프로세스 띄우기 (1분)
+#### ① 사전 준비 — 실습용 자바 프로세스 띄우기
 
 ```bash
 # JDK가 없다면 설치
@@ -538,7 +529,7 @@ EOF
 cd /tmp && javac Stuck.java && java Stuck &
 ```
 
-#### ② PID 찾기 (30초)
+#### ② PID 찾기
 
 ```bash
 # 자바 프로세스 목록
@@ -550,7 +541,7 @@ PID=$(pgrep -f Stuck)
 echo $PID
 ```
 
-#### ③ 스레드 덤프 — "지금 뭐하는 중?" (2분)
+#### ③ 스레드 덤프 — "지금 뭐하는 중?"
 
 ```bash
 # jstack으로 스레드 상태 저장
@@ -566,7 +557,7 @@ top -H -p $PID      # q로 종료
 
 > 운영 팁: 똑같은 걸 **5초 간격으로 3번** 뜬다. 같은 스레드가 같은 위치에 멈춰있으면 그게 범인.
 
-#### ④ 힙 덤프 — "누가 메모리를 먹는가?" (2분)
+#### ④ 힙 덤프 — "누가 메모리를 먹는가?"
 
 ```bash
 # jcmd로 힙 덤프 (권장)
@@ -579,7 +570,7 @@ ls -lh /tmp/heap.hprof
 > `.hprof` 파일은 나중에 **Eclipse MAT** / **VisualVM**으로 열어 분석. 실제로 열어보는 것까지는 오늘 생략.
 > **주의**: 힙 덤프 뜨는 동안 JVM은 멈춘다(STW). 운영 서버에선 주의.
 
-#### ⑤ 프로세스가 뭘 열고 있는지 (1분)
+#### ⑤ 프로세스가 뭘 열고 있는지
 
 ```bash
 # 열린 파일·소켓·라이브러리
@@ -589,7 +580,7 @@ sudo lsof -p $PID | head -10
 sudo strace -p $PID -tt
 ```
 
-#### ⑥ 증거 폴더 한 방에 만들기 (2분)
+#### ⑥ 증거 폴더 한 방에 만들기
 
 ```bash
 # 장애 시점 증거를 한 디렉토리에 모아두면 나중에 분석이 편하다
@@ -607,7 +598,7 @@ sudo journalctl -b   > journal.log
 ls -lh
 ```
 
-#### ⑦ 정리 (30초)
+#### ⑦ 정리
 
 ```bash
 # 실습용 프로세스 종료
