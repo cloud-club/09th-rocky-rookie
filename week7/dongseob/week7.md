@@ -8,7 +8,7 @@
 * 성공했는지 실패했는지
 * 왜 실패했는지
 
-⸻
+
 
 # 2. RHEL 계열의 로그 구조
 
@@ -20,7 +20,7 @@
 
 
 ## 2-1. 전체 구조
-
+```text
 프로그램 / 서비스 / 커널
         │
         ▼
@@ -32,7 +32,7 @@
                  │
                  ▼
              /var/log/*
-
+```
 
 * journald = 로그를 중앙 수집
 * journalctl = journald 조회 도구
@@ -44,7 +44,7 @@
 
 ## 2-2. journald
 
-systemd-journald : systemd 기반 로그 수집 데몬
+systemd-journald : systemd 기반 로그 수집 데몬 + “로그 수집 허브” 같은 역할
 
 특징:
 * 커널 메시지 수집
@@ -52,8 +52,6 @@ systemd-journald : systemd 기반 로그 수집 데몬
 * syslog 메시지 수집
 * 바이너리 형식으로 저장
 * journalctl로 조회
-
--> journald는 “로그 수집 허브” 같은 역할
 
 기본 저장 위치:
 - /run/log/journal/      : 휘발성 (재부팅 시 사라질 수 있음)
@@ -92,7 +90,7 @@ rsyslog
 * grep/tail 친화적
 * 외부 전송 강함
 
-⸻
+
 
 # 3. 주요 로그 저장 위치
 
@@ -109,51 +107,56 @@ tail -n 숫자 /var/log/messages
 ```
 
 
-파일	                     의미
-/var/log/messages	        일반 시스템 메시지(systemd 서비스, 네트워크 관련, 데몬 상태 변화 등)
-/var/log/secure	            ***인증 및 보안*** 관련 - sshd, sudo, su, PAM 인증
-/var/log/cron	            cron 작업 로그
-/var/log/maillog	        메일 서비스 로그
-/var/log/boot.log	        부팅 관련 로그 - 부팅 중 서비스 시작/실패 메시지, 부팅 스크립트/서비스 상태 메시지
-/var/log/dmesg	            배포판/설정에 따라 저장되는 커널 메시지
-/var/log/audit/audit.log	***감사***/SELinux 관련
-/var/log/httpd/	            Apache 로그
-/var/log/nginx/	            Nginx 로그
-/var/log/wtmp               로그인 이력 / 실패이력 로그
-/var/log/btmp
-/var/log/last, lastb
+| 파일 경로 | 의미 |
+|---|---|
+| `/var/log/messages` | 일반 시스템 메시지. systemd 서비스 상태 변화, 네트워크 관련 이벤트, 데몬 동작 등의 종합 로그 |
+| `/var/log/secure` | **인증 및 보안 관련** 로그. `sshd`, `sudo`, `su`, PAM 인증 메시지 등을 포함 |
+| `/var/log/cron` | cron 작업 실행 로그 |
+| `/var/log/maillog` | 메일 서비스 관련 로그 |
+| `/var/log/boot.log` | 부팅 관련 로그. 부팅 중 서비스 시작/실패 메시지, 부팅 스크립트/서비스 상태 메시지 |
+| `/var/log/dmesg` | 배포판/설정에 따라 저장되는 커널 메시지 |
+| `/var/log/audit/audit.log` | **감사(audit) 및 SELinux 관련** 로그 |
+| `/var/log/httpd/` | Apache 웹 서버 로그 |
+| `/var/log/nginx/` | Nginx 웹 서버 로그 |
+| `/var/log/wtmp` | 로그인/로그아웃 이력 저장용 바이너리 로그. 보통 `last` 명령으로 조회 |
+| `/var/log/btmp` | 로그인 실패 이력 저장용 바이너리 로그. 보통 `lastb` 명령으로 조회 |
+| `/var/log/lastlog` | 각 사용자별 마지막 로그인 정보 저장용 바이너리 로그. 보통 `lastlog` 명령으로 조회 |
 
-⸻
+
 
 # 4. 로그 메시지의 기본 구조
 
-Apr 21 10:33:12 localhost sshd[1203]: Accepted password for dongseob from 192.168.0.10 port 50211 ssh2
+예)
+`Apr 21 10:33:12 localhost sshd[1203]: Accepted password for dongseob from 192.168.0.10 port 50211 ssh2`
 
-부분	                 의미
-Apr 21 10:33:12	        타임스탬프
-localhost	            호스트 이름
-sshd[1203]	            프로세스/프로세스 ID
-Accepted password ...	실제 메시지 본문
+| 로그 구성 요소 | 설명 |
+|---|---|
+| `Apr 21 10:33:12` | 로그가 기록된 시각 |
+| `localhost` | 로그를 남긴 시스템(=호스트) 이름 |
+| `sshd[1203]` | 로그를 발생시킨 프로세스 이름과 PID |
+| `Accepted password ...` | 실제 이벤트 내용 |
 
 -> 로그 구조 : 시간 + 호스트 + 프로세스 + 메시지
 
-⸻
+
 
 # 5. 로그 레벨(Log Level)
 
 로그는 심각도에 따라 레벨이 나뉘며 운영에서는 보통 **err**, **warning**, **crit** 이상의 로그를 우선적으로 확인
+> 숫자가 낮을수록 더 심각한 로그 레벨
 
-번호 레벨	      의미
-0	emerg	    시스템 사용 불가
-1	alert	    즉시 조치 필요
-2	crit	    심각한 오류
-3	err	        오류
-4	warning	    경고
-5	notice	    주목할 이벤트
-6	info	    일반 정보
-7	debug	    디버깅용 상세 정보
+| 번호 | 레벨 | 의미 |
+|---|---|---|
+| 0 | `emerg` | 시스템 사용 불가 |
+| 1 | `alert` | 즉시 조치 필요 |
+| 2 | `crit` | 심각한 오류 |
+| 3 | `err` | 오류 |
+| 4 | `warning` | 경고 |
+| 5 | `notice` | 주목할 이벤트 |
+| 6 | `info` | 일반 정보 |
+| 7 | `debug` | 디버깅용 상세 정보 |
 
-⸻
+
 
 # 6. journalctl
 
@@ -205,14 +208,14 @@ journalctl -xe
 ```bash
 // sshd 서비스 관련 로그 중 최근 20줄
 journalctl -u sshd -n 20
-```
-->
+
+아래 5가지 확인
 * 설정 오류
 * 포트 바인딩 오류
 * permission denied
 * invalid option
 * failed / start request repeated too quickly
-
+```
 
 ```bash
 // 현재 부팅 이후 발생한 에러 레벨 이상만 보기
@@ -231,12 +234,13 @@ journalctl -b
 journalctl -b -1
 ```
 
-⸻
+
 
 # 7. 장애 분석
 
-서비스 장애가 났을 때의 권장 순서
+* 서비스 장애가 났을 때의 권장 순서
 
+```text
 문제 인지
   ↓
 systemctl status <service>
@@ -249,29 +253,51 @@ journalctl -u <service> -b --no-pager
 설정 / 권한 / 포트 / SELinux / 리소스 확인
   ↓
 수정 후 재시작
+```
 
 
 ## 7-1. 대표 원인
 
-* 로그 메시지	                   가능한 원인
-* Permission denied	            권한 문제 / SELinux
-* Address already in use	    포트 충돌
-* No such file or directory	    설정 파일 경로 오류
-* Failed to start	            의존성, 설정 문제
-* AVC denied	                SELinux 차단
-* syntax error	                설정 문법 오류
-* Out of memory / OOM	        메모리 부족
+| 로그 메시지 | 가능한 원인 |
+|---|---|
+| `Permission denied` | 권한 문제 / SELinux |
+| `Address already in use` | 포트 충돌 |
+| `No such file or directory` | 설정 파일 경로 오류 |
+| `Failed to start` | 의존성 문제 / 설정 문제 |
+| `AVC denied` | SELinux 차단 |
+| `syntax error` | 설정 문법 오류 |
+| `Out of memory` / `OOM` | 메모리 부족 |
 
 
 ## 7-2. 분석 명령어 세트
 
+```bash
+// 특정 서비스의 현재 상태 확인
+// - Loaded, Active, Main PID, 최근 로그 일부 등을 함께 보여줌
 systemctl status <service>
+
+// 현재 부팅 이후(-b) 특정 서비스(-u)의 전체 저널 로그를 페이저 없이 바로 출력
+// - less 같은 화면 분할기 없이 그대로 출력하므로 grep, tail과 조합하기 좋음
 journalctl -u <service> -b --no-pager
+
+// 현재 부팅 이후(-b) 특정 서비스(-u)의 에러 레벨(err) 로그만 출력
+// - 장애 원인 후보를 빠르게 좁힐 때 유용
 journalctl -u <service> -b -p err --no-pager
+
+// 현재 열려 있는 TCP 포트와 리슨 상태 확인
+// -t : TCP만 표시
+// -l : LISTEN 상태만 표시
+// -n : 포트/주소를 숫자로 표시
+// -p : 해당 포트를 사용 중인 프로세스 정보 표시
 ss -tlnp
+
+// 파일시스템 전체 사용량 확인
+// -h : 사람이 읽기 쉬운 단위(K, M, G)로 출력
 df -h
+
+// 메모리 및 스왑 사용량 확인
 free -h
-ausearch -m avc -ts recent 2>/dev/null | tail -20
+```
 
 
 ## 7-3. 서비스 장애 분석
