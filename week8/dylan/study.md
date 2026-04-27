@@ -1773,6 +1773,41 @@ seccomp      위험한 syscall 호출 자체를 화이트리스트로 차단
 rootless     USER namespace로 컨테이너 root = 호스트 일반 사용자
 ```
 
+Q7. 컨테이너 A에서 ping 172.17.0.3은 되는데 ping db는 안 됩니다. 왜 그런지, 해결 방법은?
+
+```
+기본 bridge 네트워크에는 내장 DNS가 없기 때문입니다.
+IP는 직접 라우팅되므로 됩니다.
+
+해결: 사용자 정의 네트워크 생성
+
+  docker network create mynet
+  docker run -d --name db  --network mynet mysql:8.0
+  docker run -d --name app --network mynet myapp
+
+사용자 정의 네트워크는 Docker 내장 DNS(127.0.0.11)를 자동으로 제공합니다.
+컨테이너 이름이 자동 등록되어 이름으로 통신 가능합니다.
+```
+
+Q8. Dockerfile이 있는 디렉토리에 100MB짜리 동영상 파일이 있습니다. 이미지에 포함시킬 필요가 없는데 빌드가 느립니다. 왜 그런지, 해결 방법은?
+
+```
+빌드 컨텍스트 전송 때문입니다.
+
+docker build . 에서 . 은 현재 디렉토리 전체를 tar로 묶어서
+Docker 데몬에게 전송하겠다는 의미입니다.
+COPY 명령어 실행 전에 이미 디렉토리 전체를 전송합니다.
+100MB 동영상이 있으면 그만큼 전송 시간이 걸립니다.
+
+해결: .dockerignore 파일로 전송 대상에서 제외
+
+  # .dockerignore
+  *.mp4
+  *.mov
+  node_modules
+  .git
+```
+
 ---
 
 *문서 작성 기준: Rocky Linux 10 / Docker 27 / Podman 5 (2025년 기준)*
