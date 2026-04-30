@@ -100,6 +100,8 @@ Container:80
 curl localhost:8080
 ```
 
+![](./1.png)
+
 ---
 
 # 볼륨 연결
@@ -122,6 +124,8 @@ podman run -d \
   -v ~/nginx-html:/usr/share/nginx/html:Z \
   nginx
 ```
+
+![](./2.png)
 
 ## 구조
 
